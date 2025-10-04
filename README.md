@@ -3,6 +3,9 @@
 ## Overview
 This repo demonstrates a production-oriented system that converts natural-language pipeline descriptions into runnable artifacts (PySpark, SQL, dbt). It uses LangChain + OpenAI for generation, Jinja templates as safe fallbacks, and has schema introspection to reduce hallucinations.
 
+## Problem it solves
+Non-technical users can’t write SQL or Spark code.
+
 ## Quickstart
 1. set `OPENAI_API_KEY`.
 2. Start Postgres locally (optional)
