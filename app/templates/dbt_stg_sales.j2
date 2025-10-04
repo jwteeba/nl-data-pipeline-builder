@@ -1,0 +1,31 @@
+-- dbt model: stg_sales_clean.sql
+with raw as (
+  select *
+  from raw.sales
+  where order_date = (current_date - interval '1 day')::date
+)
+select
+  id as sale_id,
+  order_date,
+  price,
+  customer_id
+from raw
+where price is not null
+  and price > 0;
+
+-- dbt model: stg_sales_customers.sql
+with sales as (
+  select * from analytics.stg_sales_clean
+),
+cust as (
+  select * from raw.customer
+)
+select
+  s.sale_id,
+  s.order_date,
+  s.price,
+  s.customer_id,
+  c.name as customer_name,
+  c.email as customer_email
+from sales s
+left join cust c on s.customer_id = c.id;

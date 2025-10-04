@@ -1,0 +1,25 @@
+version: "3.8"
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: demo
+      POSTGRES_USER: demo
+      POSTGRES_PASSWORD: demopass
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+volumes:
+  pgdata:
+
+tests:
+  build: .
+  container_name: llm-pipeline-tests
+  working_dir: /app
+  environment:
+    - PYTHONPATH=/app
+  command: >
+    bash -c "pytest app/tests"
+  volumes:
+    - .:/app

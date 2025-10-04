@@ -1,0 +1,27 @@
+-- Auto-generated SQL (Postgres)
+BEGIN;
+
+-- 1) Create cleaned staging table for yesterday
+CREATE TABLE IF NOT EXISTS public.stg_sales_clean (
+  sale_id BIGINT,
+  order_date DATE,
+  price NUMERIC,
+  customer_id BIGINT
+);
+
+INSERT INTO public.stg_sales_clean (sale_id, order_date, price, customer_id)
+SELECT id, order_date, price, customer_id
+FROM public.raw_sales
+WHERE order_date = (current_date - INTERVAL '1 day')::date
+  AND price IS NOT NULL
+  AND price > 0;
+
+-- 2) Create join results
+CREATE TABLE IF NOT EXISTS public.stg_sales_customers AS
+SELECT s.sale_id, s.order_date, s.price, s.customer_id,
+       c.name AS customer_name,
+       c.email AS customer_email
+FROM public.stg_sales_clean s
+LEFT JOIN public.customer c ON s.customer_id = c.id;
+
+COMMIT;

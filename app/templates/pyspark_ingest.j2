@@ -1,0 +1,62 @@
+# Auto-generated PySpark pipeline
+# Safe defaults: uses staging table "stg_sales_customers"
+from pyspark.sql import SparkSession, functions as F
+from datetime import datetime, timedelta
+import os
+
+s3_prefix = os.getenv("S3_SALES_PREFIX", "{{ s3_prefix }}")
+# default: yesterday in UTC
+yesterday = (datetime.utcnow() - timedelta(days=1)).strftime("%Y-%m-%d")
+s3_path = f"{s3_prefix}date={yesterday}/*.parquet"
+
+PG_HOST = os.getenv("PG_HOST")
+PG_PORT = os.getenv("PG_PORT", "5432")
+PG_DB = os.getenv("PG_DB")
+PG_USER = os.getenv("PG_USER")
+PG_PASS = os.getenv("PG_PASS")
+PG_TABLE = os.getenv("PG_TABLE", "stg_sales_customers")
+
+def main(dry_run=True):
+    spark = SparkSession.builder.appName("nl_pipeline_ingest").getOrCreate()
+
+    sales_df = spark.read.option("inferSchema","true").parquet(s3_path)
+
+    # Remove invalid prices
+    sales_clean = sales_df.filter((F.col("price").isNotNull()) & (F.col("price") > 0))
+
+    # Read customer table from Postgres
+    customers_df = spark.read \
+        .format("jdbc") \
+        .option("url", f"jdbc:postgresql://{PG_HOST}:{PG_PORT}/{PG_DB}") \
+        .option("dbtable", "customer") \
+        .option("user", PG_USER) \
+        .option("password", PG_PASS) \
+        .load()
+
+    joined = sales_clean.join(customers_df, sales_clean.customer_id == customers_df.id, "left")
+
+    result = joined.select(
+        sales_clean["id"].alias("sale_id"),
+        "order_date",
+        "price",
+        "customer_id",
+        customers_df["name"].alias("customer_name"),
+        customers_df["email"].alias("customer_email")
+    )
+
+    if dry_run:
+        print("Dry run: schema and sample rows")
+        result.printSchema()
+        result.show(10, truncate=False)
+    else:
+        result.write \
+            .format("jdbc") \
+            .option("url", f"jdbc:postgresql://{PG_HOST}:{PG_PORT}/{PG_DB}") \
+            .option("dbtable", PG_TABLE) \
+            .option("user", PG_USER) \
+            .option("password", PG_PASS) \
+            .mode("append") \
+            .save()
+
+if __name__ == "__main__":
+    main(dry_run=True)
